@@ -1,150 +1,119 @@
 var   express = require("express"),
-      app     = express(),
-      cheerio = require("cheerio"),
-      request = require('request'),
-      path    = require("path");
+    app     = express(),
+    cheerio = require("cheerio"),
+    request = require('request'),
+    path    = require("path");
 
 app.use(express.static('public'));
 
 app.get("/", function(req, res){
-    
-   if(!req.query.define){
-       res.sendFile(path.join(__dirname+'/views//index.html'));
-   }  else {
+
+    if(!req.query.define){
+        res.sendFile(path.join(__dirname+'/views//index.html'));
+    }  else {
         if(encodeURIComponent(req.query.define).includes("%")){
-                 console.log("yes");
-                 res.header("Access-Control-Allow-Origin", "*");
-                 return res.status(404).sendFile(path.join(__dirname+'/views/404.html'));
+            console.log("yes");
+            res.header("Access-Control-Allow-Origin", "*");
+            return res.status(404).sendFile(path.join(__dirname+'/views/404.html'));
         }
-        
-        var url = 'https://en.oxforddictionaries.com/search?filter=noad&query=' + req.query.define;
-        // if(req.query.lang){
-        //   url =  url.replace('en', req.query.lang);
-        //   if(req.query.lang === "hi"){
-        //       url =  url.replace('define', 'matlab');
-        //   }
-        // }
-        
+
+        var url = 'https://www.google.co.in/search?hl=en&q=define+' + req.query.define;
+        if(req.query.lang){
+            url =  url.replace('en', req.query.lang);
+            if(req.query.lang === "hi"){
+                url =  url.replace('define', 'matlab');
+            }
+        }
+
         url = encodeURI(url);
 
         request({
-        method: 'GET',
-        url: url,
-        headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:58.0) Gecko/20100101 Firefox/58.0"
-        }
-    }, function(err, response, body) {
-        
+            method: 'GET',
+            url: url,
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:58.0) Gecko/20100101 Firefox/58.0"
+            }
+        }, function(err, response, body) {
+
             if(err){
                 return console.error(err);
             }
-            
+
+            var dictionary = {};
+
+            //return res.send(body);
             var $ = cheerio.load(body);
 
-                    
-                    
-            if(!($(".hwg .hw").first()[0])){
-                console.log($(".searchHeading").first().text());
-                console.log(req.query.define + " is not present in Dictionary.");
+
+            var word  = $("div.dDoNo span").first().text();
+            //console.log(word);
+            if(word.length < 1){
                 res.header("Access-Control-Allow-Origin", "*");
                 return res.status(404).sendFile(path.join(__dirname+'/views/404.html'));
             }
-            
-            
-            var dictionary = [];
 
-            var i,j = 0;
+            dictionary.word = $("div.dDoNo span").first().text();
 
-            var entryHead = $(".entryHead.primary_homograph");
-            
-            var array = [];
-            array[0] = $("#" + entryHead[0].attribs.id + " ~ .gramb").length - $("#" + entryHead[1].attribs.id + " ~ .gramb").length ;
-            for(i = 2; i < entryHead.length; i++){
-                array[i - 1] = $("#" + entryHead[i - 1].attribs.id + " ~ .gramb").length - $("#" + entryHead[i].attribs.id + " ~ .gramb").length ;
-                array[i - 1] = array[i - 1] + array[i - 2];
+            if(!$('.lr_dct_spkr.lr_dct_spkr_off audio')){
+                dictionary.pronunciation = "https:" + $('.lr_dct_spkr.lr_dct_spkr_off audio')[0].attribs.src;
+                dictionary.pronunciation = dictionary.pronunciation.replace('--_gb', '--_us');
             }
-            array.push($("#" + entryHead[i - 1].attribs.id + " ~ .gramb").length + array[i - 2]);     
-            
-            var grambs = $("section.gramb");
 
-            var numberOfentryGroup = array.length;
+            dictionary.phonetic = [];
+            $(".lr_dct_ph.XpoqFe").first().find('span').each(function(i, element){
+                dictionary.phonetic.push($(this).text());
+            });
 
-            for(i = 0; i < numberOfentryGroup; i++){
-                var entry = {};
-                
-                var word  = $(".hwg .hw")[i].childNodes[0].nodeValue;
-                entry.word = word;
-                console.log(entry.word);
-                
-                var phonetic  = $(".pronSection.etym .pron .phoneticspelling")[i];
-                if(phonetic){
-                    entry.phonetic = phonetic.childNodes[0].data;
-                }
-                
-                entry.meaning = {};
-                
-                var numberOfGrambs = array[i];
-                var start  = 0;
-                if(i > 0){
-                    start = array[i] - 1;
-                }
-                for(j = start; j < numberOfGrambs; j++){
+            dictionary.meaning = {};
 
-                    	var partofspeech = $(grambs[j]).find(".ps.pos .pos").text();
-                    	$(grambs[j]).find(".semb").each(function(j, element){
-                    		var meaningArray = [];
-                    		$(element).find("> li").each(function(j, element){
-                    		    
-                    			var item = $(element).find("> .trg");
-                    			
-                    			var definition = $(item).find(" > p > .ind").text();
-                    			if(definition.length  === 0){
-                    			    definition = $(item).find(".crossReference").first().text();
-                    			}
-                    			var example = $(item).find(" > .exg  > .ex > em").first().text();
-                    			var synonymsText = $(item).find(" > .synonyms > .exg  > .exs").first().text();
-                    			var synonyms = synonymsText.split(/,|;/).filter(synonym => synonym!= ' ' && synonym).map(function(item) {
-                                                 return item.trim();
-                                               });
-                                               
-                                var newDefinition = {};
-                            	if(definition.length > 0)
-                            	    newDefinition.definition = definition;
-                            			                                   
-                                if(example.length > 0)
-                                    newDefinition.example = example.substring(1, example.length - 1);
-                                
-                                if(synonyms.length > 0)
-                                    newDefinition.synonyms = synonyms;
-    
-                    			meaningArray.push(newDefinition);
-    
-                    		});
 
-                    		if(partofspeech.length === 0)
-                    		    partofspeech = "crossReference";
-                    		entry.meaning[partofspeech] = meaningArray.slice();
-                    	});
-                    		
-                }
-                dictionary.push(entry);
-            }
-            
-     
-            
-            Object.keys(dictionary).forEach(key => {(Array.isArray(dictionary[key]) && !dictionary[key].length) && delete dictionary[key]});
-            
-            if($(".hwg .hw").first()[0]){
-                res.header("Content-Type",'application/json');
-                res.header("Access-Control-Allow-Origin", "*");
-                res.send(JSON.stringify(dictionary, null, 4));
-            }
-    
-            
+            var definitions = $(".lr_dct_ent.vmod.XpoqFe");
+
+            var mainPart = definitions.first().find(".lr_dct_sf_h");
+
+            var meaning = {};
+
+            mainPart.each(function(i, element){
+                var type = $(this).find('i').text();
+                meaning[type] = [];
+                var selector = $(".lr_dct_sf_sens").eq(i).find("div[style='margin-left:20px'] > .PNlCoe");
+
+                selector.each(function(i, element){
+                    var newDefinition = {};
+                    newDefinition.definition = $(this).find("div[data-dobid='dfn']").text();
+                    var example  = $(this).find("span.vmod .vk_gy").text();
+                    var synonymsText = $(this).find("div.vmod td.lr_dct_nyms_ttl + td > span:not([data-log-string='synonyms-more-click'])").text();
+
+                    var synonyms = synonymsText.split(/,|;/).filter(synonym => synonym!= ' ' && synonym).map(function(item) {
+                        return item.trim();
+                    });
+
+                    if(example.length > 0)
+                        newDefinition.example = example.replace(/(^")|("$)/g, '');
+
+                    if(synonyms.length > 0)
+                        newDefinition.synonyms = synonyms;
+
+                    meaning[type].push(newDefinition);
+                });
+
+            }) ;
+
+            dictionary.meaning = meaning;
+
+            Object.keys(dictionary).forEach(key => {(Array.isArray(dictionary[key]) && !dictionary[key].length) && delete dictionary[key]})
+
+            res.header("Content-Type",'application/json');
+            res.header("Access-Control-Allow-Origin", "*");
+            res.send(JSON.stringify(dictionary, null, 4));
+
         });
     }
 });
 
+// app.get("/languageCode.txt", function(req, res){
+//     res.sendFile(__dirname + "/languageCode.txt");
+// })
 
 app.listen(process.env.PORT, process.env.IP, function(){
     console.log("I am listening...");
