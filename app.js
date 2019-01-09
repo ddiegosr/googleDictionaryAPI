@@ -14,15 +14,12 @@ app.get("/", function(req, res){
         if(encodeURIComponent(req.query.define).includes("%")){
             console.log("yes");
             res.header("Access-Control-Allow-Origin", "*");
-            return res.status(404).sendFile(path.join(__dirname+'/views/404.html'));
+            return res.status(404);
         }
 
-        var url = 'https://www.google.co.in/search?hl=en&q=define+' + req.query.define;
+        var url = 'https://www.google.co.in/search?hl=en&q=defina+' + req.query.define;
         if(req.query.lang){
             url =  url.replace('en', req.query.lang);
-            if(req.query.lang === "hi"){
-                url =  url.replace('define', 'matlab');
-            }
         }
 
         url = encodeURI(url);
@@ -49,7 +46,7 @@ app.get("/", function(req, res){
             //console.log(word);
             if(word.length < 1){
                 res.header("Access-Control-Allow-Origin", "*");
-                return res.status(404).sendFile(path.join(__dirname+'/views/404.html'));
+                return res.status(200).send(JSON.stringify({error: 404}));
             }
 
             dictionary.word = $("div.dDoNo span").first().text();
@@ -115,6 +112,6 @@ app.get("/", function(req, res){
 //     res.sendFile(__dirname + "/languageCode.txt");
 // })
 
-app.listen(process.env.PORT, process.env.IP, function(){
+app.listen(3000, 'localhost', function(){
     console.log("I am listening...");
 });
